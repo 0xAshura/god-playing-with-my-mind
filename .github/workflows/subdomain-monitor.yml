@@ -1,0 +1,123 @@
+name: Subdomain + CVE Monitor
+
+on:
+  push:
+    paths:
+      - '**/domains.txt'
+  workflow_dispatch:
+    inputs:
+      target_folder:
+        description: 'Folder to manually scan (e.g. comcast)'
+        required: true
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download Binaries (subfinder, httpx, nuclei)
+        run: |
+          mkdir -p tools
+          curl -sL https://github.com/projectdiscovery/subfinder/releases/latest/download/subfinder_amd64_linux.zip -o subfinder.zip
+          unzip -o subfinder.zip -d tools && chmod +x tools/subfinder
+
+          curl -sL https://github.com/projectdiscovery/httpx/releases/latest/download/httpx_amd64_linux.zip -o httpx.zip
+          unzip -o httpx.zip -d tools && chmod +x tools/httpx
+
+          curl -sL https://github.com/projectdiscovery/nuclei/releases/latest/download/nuclei_amd64_linux.zip -o nuclei.zip
+          unzip -o nuclei.zip -d tools && chmod +x tools/nuclei
+
+      - name: Pull Nuclei Templates
+        run: git clone https://github.com/projectdiscovery/nuclei-templates.git
+
+      - name: Determine Domains to Scan
+        id: scan_targets
+        run: |
+          mkdir -p tmp_targets
+          folders=""
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            folder="${{ github.event.inputs.target_folder }}"
+            cp "$folder/domains.txt" tmp_targets/${folder}_new.txt
+            touch tmp_targets/${folder}_old.txt
+            comm -13 <(sort tmp_targets/${folder}_old.txt) <(sort tmp_targets/${folder}_new.txt) > tmp_targets/${folder}_new_domains.txt
+            folders="$folder"
+          else
+            while read change; do
+              file=$(echo "$change" | awk '{print $2}')
+              folder=$(echo "$file" | cut -d'/' -f1)
+              folders="$folders $folder"
+              git show HEAD~1:"$file" > tmp_targets/${folder}_old.txt 2>/dev/null || touch tmp_targets/${folder}_old.txt
+              cp "$file" tmp_targets/${folder}_new.txt
+              comm -13 <(sort tmp_targets/${folder}_old.txt) <(sort tmp_targets/${folder}_new.txt) > tmp_targets/${folder}_new_domains.txt
+            done <<< "$(git diff --name-status ${{ github.event.before }} ${{ github.sha }} | grep domains.txt)"
+          fi
+          echo "folders=$(echo $folders | xargs -n1 | sort -u | xargs)" >> $GITHUB_OUTPUT
+
+      - name: Run Subfinder, HTTPX, and Nuclei
+        if: steps.scan_targets.outputs.folders != ''
+        run: |
+          for folder in ${{ steps.scan_targets.outputs.folders }}; do
+            mkdir -p "$folder/subdomains/subfinder" "$folder/subdomains/httpx" "$folder/subdomains/nuclei"
+            if [[ ! -f tmp_targets/${folder}_new_domains.txt ]]; then
+              continue
+            fi
+
+            while IFS= read -r domain; do
+              domain_cleaned=$(echo "$domain" | tr -d ' \t\r\n')
+              echo "[*] Processing $domain_cleaned"
+
+              # === SUBFINDER ===
+              subfinder_out="$folder/subdomains/subfinder/${domain_cleaned}.txt"
+              old_subs="/tmp/old_${domain_cleaned}.txt"
+              cp "$subfinder_out" "$old_subs" 2>/dev/null || touch "$old_subs"
+
+              ./tools/subfinder -d "$domain_cleaned" -silent -o "$subfinder_out"
+              new_subs=$(comm -13 <(sort "$old_subs") <(sort "$subfinder_out"))
+
+              # === HTTPX ===
+              httpx_out="$folder/subdomains/httpx/${domain_cleaned}.txt"
+              ./tools/httpx -l "$subfinder_out" -silent -o "$httpx_out"
+
+              # === NUCLEI ===
+              nuclei_out="$folder/subdomains/nuclei/${domain_cleaned}.txt"
+              ./tools/nuclei -l "$httpx_out" -t nuclei-templates/ -severity low,medium,high,critical -silent -o "$nuclei_out"
+
+              # === Notify if CVEs Found ===
+              if [[ -s "$nuclei_out" ]]; then
+                echo "**🚨 Vulns for $domain_cleaned:**" > "/tmp/nuclei_${domain_cleaned}.txt"
+                echo '```' >> "/tmp/nuclei_${domain_cleaned}.txt"
+                cat "$nuclei_out" | head -n 20 >> "/tmp/nuclei_${domain_cleaned}.txt"
+                echo '```' >> "/tmp/nuclei_${domain_cleaned}.txt"
+
+                curl -H "Content-Type: application/json" \
+                  -X POST \
+                  -d "{\"content\": \"$(cat /tmp/nuclei_${domain_cleaned}.txt | sed ':a;N;$!ba;s/\n/\\n/g')\"}" \
+                  ${{ secrets.DISCORD_WEBHOOK }}
+              fi
+
+              # === Notify New Subdomains ===
+              if [[ ! -z "$new_subs" ]]; then
+                echo "**🌐 New subdomains for $domain_cleaned:**" > "/tmp/subs_${domain_cleaned}.txt"
+                echo '```' >> "/tmp/subs_${domain_cleaned}.txt"
+                echo "$new_subs" >> "/tmp/subs_${domain_cleaned}.txt"
+                echo '```' >> "/tmp/subs_${domain_cleaned}.txt"
+
+                curl -H "Content-Type: application/json" \
+                  -X POST \
+                  -d "{\"content\": \"$(cat /tmp/subs_${domain_cleaned}.txt | sed ':a;N;$!ba;s/\n/\\n/g')\"}" \
+                  ${{ secrets.DISCORD_WEBHOOK }}
+              fi
+
+            done < tmp_targets/${folder}_new_domains.txt
+          done
+
+      - name: Commit Results
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add */subdomains/**/*.txt
+          git commit -m "update: subfinder + httpx + nuclei results" || echo "No changes"
+          git push || echo "No push needed"
