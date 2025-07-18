@@ -18,29 +18,27 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install GitHub CLI
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gh
-
-      - name: Download Binaries (subfinder, httpx, nuclei) with GH CLI
+      - name: Download Binaries (subfinder, httpx, nuclei)
         run: |
           mkdir -p tools
 
-          # Download subfinder
-          gh release download --repo projectdiscovery/subfinder --pattern '*linux_amd64.zip' --output subfinder.zip
-          if [ ! -s subfinder.zip ]; then echo "subfinder.zip download failed!"; exit 1; fi
-          unzip -o subfinder.zip -d tools && chmod +x tools/subfinder*
+          # Download and extract subfinder
+          curl -fSL https://github.com/projectdiscovery/subfinder/releases/download/v2.8.0/subfinder_2.8.0_linux_amd64.zip -o subfinder.zip
+          unzip -o subfinder.zip
+          mv subfinder_2.8.0_linux_amd64 tools/subfinder
+          chmod +x tools/subfinder
 
-          # Download httpx
-          gh release download --repo projectdiscovery/httpx --pattern '*linux_amd64.zip' --output httpx.zip
-          if [ ! -s httpx.zip ]; then echo "httpx.zip download failed!"; exit 1; fi
-          unzip -o httpx.zip -d tools && chmod +x tools/httpx*
+          # Download and extract httpx
+          curl -fSL https://github.com/projectdiscovery/httpx/releases/download/v1.7.1/httpx_1.7.1_linux_amd64.zip -o httpx.zip
+          unzip -o httpx.zip
+          mv httpx_1.7.1_linux_amd64 tools/httpx
+          chmod +x tools/httpx
 
-          # Download nuclei
-          gh release download --repo projectdiscovery/nuclei --pattern '*linux_amd64.zip' --output nuclei.zip
-          if [ ! -s nuclei.zip ]; then echo "nuclei.zip download failed!"; exit 1; fi
-          unzip -o nuclei.zip -d tools && chmod +x tools/nuclei*
+          # Download and extract nuclei
+          curl -fSL https://github.com/projectdiscovery/nuclei/releases/download/v3.4.7/nuclei_3.4.7_linux_amd64.zip -o nuclei.zip
+          unzip -o nuclei.zip
+          mv nuclei_3.4.7_linux_amd64 tools/nuclei
+          chmod +x tools/nuclei
 
       - name: Pull Nuclei Templates
         run: git clone https://github.com/projectdiscovery/nuclei-templates.git
@@ -86,16 +84,16 @@ jobs:
               old_subs="/tmp/old_${domain_cleaned}.txt"
               cp "$subfinder_out" "$old_subs" 2>/dev/null || touch "$old_subs"
 
-              ./tools/subfinder* -d "$domain_cleaned" -silent -o "$subfinder_out"
+              ./tools/subfinder -d "$domain_cleaned" -silent -o "$subfinder_out"
               new_subs=$(comm -13 <(sort "$old_subs") <(sort "$subfinder_out"))
 
               # === HTTPX ===
               httpx_out="$folder/subdomains/httpx/${domain_cleaned}.txt"
-              ./tools/httpx* -l "$subfinder_out" -silent -o "$httpx_out"
+              ./tools/httpx -l "$subfinder_out" -silent -o "$httpx_out"
 
               # === NUCLEI ===
               nuclei_out="$folder/subdomains/nuclei/${domain_cleaned}.txt"
-              ./tools/nuclei* -l "$httpx_out" -t nuclei-templates/ -severity low,medium,high,critical -silent -o "$nuclei_out"
+              ./tools/nuclei -l "$httpx_out" -t nuclei-templates/ -severity low,medium,high,critical -silent -o "$nuclei_out"
 
               # === Notify if CVEs Found ===
               if [[ -s "$nuclei_out" ]]; then
@@ -133,3 +131,4 @@ jobs:
           git add */subdomains/**/*.txt
           git commit -m "update: subfinder + httpx + nuclei results" || echo "No changes"
           git push || echo "No push needed"
+
