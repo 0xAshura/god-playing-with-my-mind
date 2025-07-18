@@ -22,18 +22,17 @@ jobs:
         run: |
           mkdir -p tools
 
-         curl -fSL https://github.com/projectdiscovery/subfinder/releases/latest/download/subfinder_amd64_linux.zip -o subfinder.zip
-         if [ ! -s subfinder.zip ]; then echo "subfinder.zip download failed!"; exit 1; fi
-         unzip -o subfinder.zip -d tools && chmod +x tools/subfinder
+          curl -fSL https://github.com/projectdiscovery/subfinder/releases/latest/download/subfinder_amd64_linux.zip -o subfinder.zip
+          if [ ! -s subfinder.zip ]; then echo "subfinder.zip download failed!"; exit 1; fi
+          unzip -o subfinder.zip -d tools && chmod +x tools/subfinder
 
-         curl -fSL https://github.com/projectdiscovery/httpx/releases/latest/download/httpx_amd64_linux.zip -o httpx.zip
-         if [ ! -s httpx.zip ]; then echo "httpx.zip download failed!"; exit 1; fi
-         unzip -o httpx.zip -d tools && chmod +x tools/httpx
+          curl -fSL https://github.com/projectdiscovery/httpx/releases/latest/download/httpx_amd64_linux.zip -o httpx.zip
+          if [ ! -s httpx.zip ]; then echo "httpx.zip download failed!"; exit 1; fi
+          unzip -o httpx.zip -d tools && chmod +x tools/httpx
 
-         curl -fSL https://github.com/projectdiscovery/nuclei/releases/latest/download/nuclei_amd64_linux.zip -o nuclei.zip
-         if [ ! -s nuclei.zip ]; then echo "nuclei.zip download failed!"; exit 1; fi
-         unzip -o nuclei.zip -d tools && chmod +x tools/nuclei
-
+          curl -fSL https://github.com/projectdiscovery/nuclei/releases/latest/download/nuclei_amd64_linux.zip -o nuclei.zip
+          if [ ! -s nuclei.zip ]; then echo "nuclei.zip download failed!"; exit 1; fi
+          unzip -o nuclei.zip -d tools && chmod +x tools/nuclei
 
       - name: Pull Nuclei Templates
         run: git clone https://github.com/projectdiscovery/nuclei-templates.git
