@@ -21,14 +21,24 @@ jobs:
       - name: Download Binaries (subfinder, httpx, nuclei)
         run: |
           mkdir -p tools
-          curl -fSL https://github.com/projectdiscovery/subfinder/releases/download/v2.8.0/subfinder_2.8.0_linux_amd64.zip 
-          unzip subfinder_2.8.0_linux_amd64.zip  -d tools && chmod +x tools/subfinder
 
+          # Download and extract subfinder
+          curl -fSL https://github.com/projectdiscovery/subfinder/releases/download/v2.8.0/subfinder_2.8.0_linux_amd64.zip -o subfinder.zip
+          unzip -o subfinder.zip
+          mv subfinder_2.8.0_linux_amd64 tools/subfinder
+          chmod +x tools/subfinder
+
+          # Download and extract httpx
           curl -fSL https://github.com/projectdiscovery/httpx/releases/download/v1.7.1/httpx_1.7.1_linux_amd64.zip -o httpx.zip
-          unzip -o httpx.zip -d tools && chmod +x tools/httpx
+          unzip -o httpx.zip
+          mv httpx_1.7.1_linux_amd64 tools/httpx
+          chmod +x tools/httpx
 
+          # Download and extract nuclei
           curl -fSL https://github.com/projectdiscovery/nuclei/releases/download/v3.4.7/nuclei_3.4.7_linux_amd64.zip -o nuclei.zip
-          unzip -o nuclei.zip -d tools && chmod +x tools/nuclei
+          unzip -o nuclei.zip
+          mv nuclei_3.4.7_linux_amd64 tools/nuclei
+          chmod +x tools/nuclei
 
       - name: Pull Nuclei Templates
         run: git clone https://github.com/projectdiscovery/nuclei-templates.git
