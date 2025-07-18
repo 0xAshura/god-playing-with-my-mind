@@ -21,8 +21,8 @@ jobs:
       - name: Download Binaries (subfinder, httpx, nuclei)
         run: |
           mkdir -p tools
-          curl -fSL https://github.com/projectdiscovery/subfinder/releases/download/v2.8.0/subfinder_2.8.0_linux_amd64.zip -o subfinder.zip
-          unzip -o subfinder.zip -d tools && chmod +x tools/subfinder
+          curl -fSL https://github.com/projectdiscovery/subfinder/releases/download/v2.8.0/subfinder_2.8.0_linux_amd64.zip 
+          unzip -o subfinder_2.8.0_linux_amd64.zip  -d tools && chmod +x tools/subfinder
 
           curl -fSL https://github.com/projectdiscovery/httpx/releases/download/v1.7.1/httpx_1.7.1_linux_amd64.zip -o httpx.zip
           unzip -o httpx.zip -d tools && chmod +x tools/httpx
