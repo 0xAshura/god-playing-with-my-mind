@@ -50,18 +50,18 @@ jobs:
           folders=""
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             folder="${{ github.event.inputs.target_folder }}"
-            cp "$folder/domains.txt" tmp_targets/${folder}_new.txt
-            touch tmp_targets/${folder}_old.txt
-            comm -13 <(sort tmp_targets/${folder}_old.txt) <(sort tmp_targets/${folder}_new.txt) > tmp_targets/${folder}_new_domains.txt
+            cp "$folder/domains.txt" "tmp_targets/${folder}_new.txt"
+            touch "tmp_targets/${folder}_old.txt"
+            comm -13 <(sort "tmp_targets/${folder}_old.txt") <(sort "tmp_targets/${folder}_new.txt") > "tmp_targets/${folder}_new_domains.txt"
             folders="$folder"
           else
             while read change; do
               file=$(echo "$change" | awk '{print $2}')
               folder=$(echo "$file" | cut -d'/' -f1)
               folders="$folders $folder"
-              git show HEAD~1:"$file" > tmp_targets/${folder}_old.txt 2>/dev/null || touch tmp_targets/${folder}_old.txt
-              cp "$file" tmp_targets/${folder}_new.txt
-              comm -13 <(sort tmp_targets/${folder}_old.txt) <(sort tmp_targets/${folder}_new.txt) > tmp_targets/${folder}_new_domains.txt
+              git show HEAD~1:"$file" > "tmp_targets/${folder}_old.txt" 2>/dev/null || touch "tmp_targets/${folder}_old.txt"
+              cp "$file" "tmp_targets/${folder}_new.txt"
+              comm -13 <(sort "tmp_targets/${folder}_old.txt") <(sort "tmp_targets/${folder}_new.txt") > "tmp_targets/${folder}_new_domains.txt"
             done <<< "$(git diff --name-status ${{ github.event.before }} ${{ github.sha }} | grep domains.txt)"
           fi
           echo "folders=$(echo $folders | xargs -n1 | sort -u | xargs)" >> $GITHUB_OUTPUT
@@ -131,4 +131,5 @@ jobs:
           git add */subdomains/**/*.txt
           git commit -m "update: subfinder + httpx + nuclei results" || echo "No changes"
           git push || echo "No push needed"
-
+          git commit -m "update: subfinder + httpx + nuclei results" || echo "No changes"
+          git push || echo "No push needed"
