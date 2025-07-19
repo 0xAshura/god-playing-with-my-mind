@@ -50,19 +50,33 @@ jobs:
           folders=""
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             folder="${{ github.event.inputs.target_folder }}"
-            cp "$folder/domains.txt" "tmp_targets/${folder}_new.txt"
-            touch "tmp_targets/${folder}_old.txt"
-            comm -13 <(sort "tmp_targets/${folder}_old.txt") <(sort "tmp_targets/${folder}_new.txt") > "tmp_targets/${folder}_new_domains.txt"
-            folders="$folder"
+            if [[ -f "$folder/domains.txt" ]]; then
+              cp "$folder/domains.txt" "tmp_targets/${folder}_new.txt"
+              touch "tmp_targets/${folder}_old.txt"
+              comm -13 <(sort "tmp_targets/${folder}_old.txt") <(sort "tmp_targets/${folder}_new.txt") > "tmp_targets/${folder}_new_domains.txt"
+              folders="$folder"
+            fi
           else
+            # Only run git diff if 'before' is a valid commit
+            if git cat-file -e ${{ github.event.before }} 2>/dev/null; then
+              changes=$(git diff --name-status ${{ github.event.before }} ${{ github.sha }} | grep domains.txt)
+            else
+              changes=""
+            fi
             while read change; do
               file=$(echo "$change" | awk '{print $2}')
               folder=$(echo "$file" | cut -d'/' -f1)
               folders="$folders $folder"
-              git show HEAD~1:"$file" > "tmp_targets/${folder}_old.txt" 2>/dev/null || touch "tmp_targets/${folder}_old.txt"
-              cp "$file" "tmp_targets/${folder}_new.txt"
-              comm -13 <(sort "tmp_targets/${folder}_old.txt") <(sort "tmp_targets/${folder}_new.txt") > "tmp_targets/${folder}_new_domains.txt"
-            done <<< "$(git diff --name-status ${{ github.event.before }} ${{ github.sha }} | grep domains.txt)"
+              if [[ -n "$file" && -f "$file" ]]; then
+                if git cat-file -e HEAD~1:"$file" 2>/dev/null; then
+                  git show HEAD~1:"$file" > "tmp_targets/${folder}_old.txt"
+                else
+                  touch "tmp_targets/${folder}_old.txt"
+                fi
+                cp "$file" "tmp_targets/${folder}_new.txt"
+                comm -13 <(sort "tmp_targets/${folder}_old.txt") <(sort "tmp_targets/${folder}_new.txt") > "tmp_targets/${folder}_new_domains.txt"
+              fi
+            done <<< "$changes"
           fi
           echo "folders=$(echo $folders | xargs -n1 | sort -u | xargs)" >> $GITHUB_OUTPUT
 
